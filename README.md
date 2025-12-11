@@ -1,6 +1,6 @@
 # Steam Clip Discord Bot
 
-A Discord bot that automatically downloads Steam share videos and hosts them for easy access. Users can use the `/share` slash command with a Steam CDN link, and the bot downloads the video using `yt-dlp`, hosts it on an integrated web server, and replies with a direct download link.
+A Discord bot that permanently archives Steam share videos, enabling seamless inline playback directly within Discord. It bypasses Steam's 2-day link expiration by downloading clips via yt-dlp and self-hosting them, replying with a direct stream link that renders in Discord’s native video player so users never have to open a browser to watch.
 
 ## Features
 
@@ -8,6 +8,7 @@ A Discord bot that automatically downloads Steam share videos and hosts them for
 - 📥 Downloads videos using `yt-dlp`
 - 🌐 Hosts downloaded videos via Flask web server
 - 📝 Queues multiple requests for sequential processing
+- 📊 Real-time status updates showing queue size and processing status
 - 🐳 Runs entirely in Docker with supervisor managing both services
 - ⚡ Provides direct download links for easy sharing
 
@@ -23,7 +24,8 @@ Both services are managed by `supervisord` for reliability.
 
 - Docker and Docker Compose installed
 - A Discord Bot Token ([Create one here](https://discord.com/developers/applications))
-- A reverse proxy configured to forward `https://clips.ablomer.io` to the container
+- A public URL (Domain name or Public IP) to serve files from
+- (Optional) A reverse proxy configured to forward your domain to the container
 
 ## Discord Bot Setup
 
@@ -49,10 +51,10 @@ cd clip-bot
 cp .env.example .env
 ```
 
-3. Edit `.env` and add your Discord bot token:
+3. Edit `.env` and add your Discord bot token and base URL:
 ```env
 DISCORD_BOT_TOKEN=your_actual_bot_token_here
-BASE_URL=https://clips.ablomer.io
+BASE_URL=https://your-domain.com
 WEB_SERVER_PORT=8080
 DOWNLOADS_DIR=/app/downloads
 ```
@@ -82,7 +84,7 @@ docker build -t steam-clip-bot .
 docker run -d \
   --name steam-clip-bot \
   -e DISCORD_BOT_TOKEN=your_token_here \
-  -e BASE_URL=https://clips.ablomer.io \
+  -e BASE_URL=https://your-domain.com \
   -e WEB_SERVER_PORT=8080 \
   -p 8080:8080 \
   -v $(pwd)/downloads:/app/downloads \
@@ -91,14 +93,14 @@ docker run -d \
 
 ## Reverse Proxy Configuration
 
-Configure your reverse proxy to forward `https://clips.ablomer.io` to `http://localhost:8080` (or your configured port).
+If running in production, it is recommended to configure a reverse proxy to forward your domain to `http://localhost:8080`.
 
 ### Example Nginx configuration:
 
 ```nginx
 server {
     listen 443 ssl http2;
-    server_name clips.ablomer.io;
+    server_name your-domain.com;
 
     # SSL configuration
     ssl_certificate /path/to/cert.pem;
@@ -121,7 +123,7 @@ server {
 ### Example Caddy configuration:
 
 ```caddy
-clips.ablomer.io {
+your-domain.com {
     reverse_proxy localhost:8080
 }
 ```
@@ -132,15 +134,21 @@ Once the bot is running and invited to your Discord server:
 
 1. Type `/share` in any channel
 2. Enter your Steam share link in the `url` parameter
-3. The bot will reply that it's downloading or queued
-4. Once complete, the bot will provide a direct download link
+3. The bot will immediately respond with a status message (ephemeral, only visible to you):
+   - If processing other clips: "You're in line! X clips ahead of you."
+   - Otherwise: "Working on your clip! Hang tight, it'll be ready soon."
+4. Once complete, the bot will post a message in the channel with a direct download link and embedded player
+
+The bot's Discord presence status will show:
+- Queue size when clips are waiting
+- Processing status when actively downloading
+- "/share to get started" when idle
 
 Example:
 ```
 User: /share url:https://cdn.steamusercontent.com/ugc/123456789/video.mp4
-Bot: ⏳ Downloading your clip...
-Bot: ✅ Your clip is ready!
-     https://clips.ablomer.io/a1b2c3d4-e5f6-7890-abcd-ef1234567890.mp4
+Bot (ephemeral): Working on your clip! Hang tight, it'll be ready soon.
+Bot (channel): @User sent a [clip](https://your-domain.com/a1b2c3d4-e5f6-7890-abcd-ef1234567890.mp4)
 ```
 
 ## Project Structure
@@ -167,7 +175,7 @@ All configuration is done via environment variables in the `.env` file:
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `DISCORD_BOT_TOKEN` | Your Discord bot token | **Required** |
-| `BASE_URL` | Public URL for hosted files | `https://clips.ablomer.io` |
+| `BASE_URL` | Public URL for hosted files | `http://localhost:8080` |
 | `WEB_SERVER_PORT` | Port for the Flask server | `8080` |
 | `DOWNLOADS_DIR` | Directory for downloaded videos | `/app/downloads` |
 
@@ -259,8 +267,3 @@ python web_server.py
 ## License
 
 MIT License - Feel free to use and modify as needed.
-
-## Support
-
-For issues or questions, please open an issue on the GitHub repository.
-
