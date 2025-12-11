@@ -66,7 +66,7 @@ class SteamClipBot(discord.Client):
         total = (1 if self.processing_count else 0) + queue_size
 
         if total == 0:
-            activity = discord.Activity(type=discord.ActivityType.watching, name="for share requests")
+            activity = discord.Activity(type=discord.ActivityType.watching, name="/share to get started")
         elif self.processing_count:
             if queue_size > 0:
                 activity = discord.Activity(
@@ -164,8 +164,15 @@ def run_bot():
             )
             return
 
+        # Defer immediately to prevent interaction timeout
+        await interaction.response.defer(ephemeral=False)
+
         print(f"\n[{interaction.guild.name if interaction.guild else 'DM'}] Steam link received from {interaction.user}")
         print(f"  URL: {url}")
+
+        # Check queue status before adding
+        queue_size = bot.download_queue.qsize()
+        is_processing = bot.processing_count
 
         # Add to queue
         request = DownloadRequest(url=url.strip(), interaction=interaction)
@@ -174,23 +181,20 @@ def run_bot():
         # Update status
         await bot._update_status()
 
-        # Send a friendly acknowledgment to the user
-        queue_size = bot.download_queue.qsize()
-        is_processing = bot.processing_count
-
-        if is_processing and queue_size == 1:
-            await interaction.response.send_message(
-                "✨ You're in line, your clip will be up next!",
+        # Send initial acknowledgment via followup
+        if is_processing and queue_size > 0:
+            await interaction.followup.send(
+                f"✨ You're in line! {queue_size + 1} clips ahead of you.",
                 ephemeral=False
             )
-        elif queue_size == 1:
-            await interaction.response.send_message(
+        elif is_processing:
+            await interaction.followup.send(
                 "🎬 Working on your clip! Hang tight, it’ll be ready soon.",
                 ephemeral=False
             )
         else:
-            await interaction.response.send_message(
-                f"📝 Got it! Your clip is in the queue, {queue_size} ahead of you.",
+            await interaction.followup.send(
+                "🎬 Working on your clip! Hang tight, it'll be ready soon.",
                 ephemeral=False
             )
 
