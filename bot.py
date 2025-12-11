@@ -35,6 +35,7 @@ class SteamClipBot(discord.Client):
         # Download queue for sequential processing
         self.download_queue: asyncio.Queue[DownloadRequest] = asyncio.Queue()
         self.queue_processor_task: Optional[asyncio.Task] = None
+        self.processing_count: bool = False  # Track if a video is currently being processed
     
     async def setup_hook(self):
         """Called when the bot is starting up, before on_ready."""
@@ -51,6 +52,35 @@ class SteamClipBot(discord.Client):
         if self.queue_processor_task is None:
             self.queue_processor_task = asyncio.create_task(self._process_queue())
             print('✓ Download queue processor started')
+        
+        # Update status to show processing count
+        await self._update_status()
+    
+    async def _update_status(self):
+        """Update the bot's Discord status to show processing count."""
+        queue_size = self.download_queue.qsize()
+        total = (1 if self.processing_count else 0) + queue_size
+        
+        if total == 0:
+            activity = discord.Activity(type=discord.ActivityType.watching, name="for share requests")
+        elif self.processing_count:
+            if queue_size > 0:
+                activity = discord.Activity(
+                    type=discord.ActivityType.watching,
+                    name=f"1 processing, {queue_size} queued"
+                )
+            else:
+                activity = discord.Activity(
+                    type=discord.ActivityType.watching,
+                    name="1 clip processing"
+                )
+        else:
+            activity = discord.Activity(
+                type=discord.ActivityType.watching,
+                name=f"{queue_size} clip{'s' if queue_size != 1 else ''} in queue"
+            )
+        
+        await self.change_presence(activity=activity)
     
     async def _process_queue(self):
         """Process download requests from the queue sequentially."""
@@ -61,8 +91,12 @@ class SteamClipBot(discord.Client):
                 # Wait for a request
                 request = await self.download_queue.get()
                 
+                # Set processing flag
+                self.processing_count = True
+                await self._update_status()
+                
                 print(f"\nProcessing download request...")
-                print(f"  Queue remaining: {self.download_queue.qsize()}")
+                print(f"  Processing: {self.processing_count}, Queue remaining: {self.download_queue.qsize()}")
                 
                 try:
                     # Download the video
@@ -99,7 +133,9 @@ class SteamClipBot(discord.Client):
                     print(f"✗ Unexpected error: {str(e)}")
                 
                 finally:
-                    # Mark task as done
+                    # Clear processing flag and mark task as done
+                    self.processing_count = False
+                    await self._update_status()
                     self.download_queue.task_done()
                     
             except asyncio.CancelledError:
@@ -140,16 +176,26 @@ def run_bot():
         request = DownloadRequest(url=url.strip(), interaction=interaction)
         await bot.download_queue.put(request)
         
-        # Send acknowledgment
+        # Update status
+        await bot._update_status()
+        
+        # Send a friendly acknowledgment to the user
         queue_size = bot.download_queue.qsize()
-        if queue_size == 1:
+        is_processing = bot.processing_count
+
+        if is_processing and queue_size == 1:
             await interaction.response.send_message(
-                '⏳ Downloading your clip...',
+                f"✨ You're in line, your clip will be up next!",
+                ephemeral=False
+            )
+        elif queue_size == 1:
+            await interaction.response.send_message(
+                "🎬 Working on your clip! Hang tight, it’ll be ready soon.",
                 ephemeral=False
             )
         else:
             await interaction.response.send_message(
-                f'📝 Your clip has been queued. Position in queue: {queue_size}',
+                f"📝 Got it! Your clip is in the queue, {queue_size} ahead of you.",
                 ephemeral=False
             )
     
