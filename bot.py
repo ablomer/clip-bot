@@ -130,17 +130,11 @@ class SteamClipBot(discord.Client):
                     # Generate public URL
                     public_url = f"{config.base_url}/{filename}"
                     
-                    # 1. Send the public result to the channel
+                    # Send the public result to the channel
                     if request.interaction.channel:
                         await request.interaction.channel.send(
                             f'{request.interaction.user.mention} sent a [clip]({public_url})'
                         )
-                    
-                    # 2. Send a private confirmation to close out the interaction state
-                    await request.interaction.followup.send(
-                        f'✅ Clip successfully posted to channel!',
-                        ephemeral=True
-                    )
 
                     print(f"✓ Successfully processed: {filename}")
 
@@ -217,17 +211,17 @@ def run_bot():
         # Send initial acknowledgment via followup
         if is_processing and queue_size > 0:
             await interaction.followup.send(
-                f"✨ You're in line! {queue_size + 1} clips ahead of you.",
+                f"You're in line! {queue_size + 1} clips ahead of you.",
                 ephemeral=True
             )
         elif is_processing:
             await interaction.followup.send(
-                "🎬 Working on your clip! Hang tight, it’ll be ready soon.",
+                "Working on your clip! Hang tight, it’ll be ready soon.",
                 ephemeral=True
             )
         else:
             await interaction.followup.send(
-                "🎬 Working on your clip! Hang tight, it'll be ready soon.",
+                "Working on your clip! Hang tight, it'll be ready soon.",
                 ephemeral=True
             )
 
