@@ -50,11 +50,20 @@ class SteamClipBot(discord.Client):
 
     async def setup_hook(self):
         """Called when the bot is starting up, before on_ready."""
-        # ⚡ Guild-specific sync for instant updates
-        guild = discord.Object(id=GUILD_ID)
-        self.tree.copy_global_to(guild=guild)
-        await self.tree.sync(guild=guild)
-        print(f'✓ Slash commands synced instantly to guild {GUILD_ID}')
+        # Sync commands in the background to prevent blocking startup
+        # This ensures the bot connects to the gateway immediately to handle interactions
+        self.loop.create_task(self._sync_commands_background())
+
+    async def _sync_commands_background(self):
+        """Syncs slash commands in the background."""
+        await self.wait_until_ready() # Wait for connection before syncing
+        try:
+            guild = discord.Object(id=GUILD_ID)
+            self.tree.copy_global_to(guild=guild)
+            await self.tree.sync(guild=guild)
+            print(f'✓ Slash commands synced instantly to guild {GUILD_ID}')
+        except Exception as e:
+            print(f"✗ Failed to sync commands: {e}")
 
     async def on_ready(self):
         """Called when the bot successfully connects to Discord."""
@@ -175,11 +184,11 @@ def run_bot():
         """Slash command to download a Steam share video."""
         
         # 1. Immediately defer to stop the 3-second timeout timer instantly
-        # We wrap this in a try-block to gracefully catch 10062 if it still happens
+        # We wrap this in a try-block to gracefully catch 10062 if it occurs
         try:
             await interaction.response.defer(ephemeral=True)
         except discord.NotFound:
-            # Interaction expired or invalid; return silently to avoid log noise
+            print("Interaction not found (timed out before reaching bot)")
             return
         except Exception as e:
             print(f"Error deferring interaction: {e}")
@@ -198,14 +207,13 @@ def run_bot():
         print(f"  URL: {url}")
 
         # 3. Add to Queue
-        # Even if the bot isn't "Ready" (processor not started), the queue is safe to use
         queue_size = bot.download_queue.qsize()
         is_processing = bot.processing_count
 
         request = DownloadRequest(url=url.strip(), interaction=interaction)
         await bot.download_queue.put(request)
 
-        # Try to update status, but don't crash if bot isn't fully ready yet
+        # Update status (ignore errors if bot isn't fully ready)
         try:
             await bot._update_status()
         except Exception:
