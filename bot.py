@@ -111,11 +111,17 @@ class SteamClipBot(discord.Client):
 
                     # Generate public URL
                     public_url = f"{config.base_url}/{filename}"
-
-                    # Send success message via followup (initial response already sent)
+                    
+                    # 1. Send the public result to the channel (since the interaction is private)
+                    if request.interaction.channel:
+                        await request.interaction.channel.send(
+                            f'{request.interaction.user.mention} sent a [clip]({public_url})'
+                        )
+                    
+                    # 2. Send a private confirmation to the user to close out the interaction state
                     await request.interaction.followup.send(
-                        f'✅ Your [clip]({public_url}) is ready!',
-                        ephemeral=False
+                        f'✅ Clip successfully posted to channel!',
+                        ephemeral=True
                     )
 
                     print(f"✓ Successfully processed: {filename}")
@@ -156,8 +162,10 @@ def run_bot():
     @app_commands.describe(url="The Steam CDN share link")
     async def share_command(interaction: discord.Interaction, url: str):
         """Slash command to download a Steam share video."""
-        # Defer immediately to prevent interaction timeout
-        await interaction.response.defer(ephemeral=False)
+        
+        # Defer immediately with ephemeral=True so the "Thinking..." 
+        # and "Working on your clip" messages are private
+        await interaction.response.defer(ephemeral=True)
         
         # Validate URL format
         if not STEAM_LINK_PATTERN.match(url.strip()):
@@ -182,6 +190,7 @@ def run_bot():
         await bot._update_status()
 
         # Send initial acknowledgment via followup
+        # These will be private because the initial defer was ephemeral=True
         if is_processing and queue_size > 0:
             await interaction.followup.send(
                 f"✨ You're in line! {queue_size + 1} clips ahead of you.",
