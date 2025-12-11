@@ -31,7 +31,6 @@ class SteamClipBot(discord.Client):
         intents = discord.Intents.default()
         
         # Start in "Do Not Disturb" mode with an "Initializing..." status
-        # This gives visual feedback that the bot isn't ready yet
         super().__init__(
             intents=intents, 
             status=discord.Status.dnd, 
@@ -70,7 +69,7 @@ class SteamClipBot(discord.Client):
         # Mark bot as ready to accept commands
         self.is_ready_for_commands = True
         
-        # Update status (This will switch the icon from Red/DND to Green/Online)
+        # Update status
         await self._update_status()
 
     async def _update_status(self):
@@ -175,19 +174,20 @@ def run_bot():
     async def share_command(interaction: discord.Interaction, url: str):
         """Slash command to download a Steam share video."""
         
-        # Check if the bot is fully initialized
-        if not bot.is_ready_for_commands:
-            await interaction.response.send_message(
-                "❌ Hang tight, I'm not ready yet! Please try again in a few seconds.", 
-                ephemeral=True
-            )
+        # 1. Immediately defer to stop the 3-second timeout timer instantly
+        # We wrap this in a try-block to gracefully catch 10062 if it still happens
+        try:
+            await interaction.response.defer(ephemeral=True)
+        except discord.NotFound:
+            # Interaction expired or invalid; return silently to avoid log noise
             return
-
-        # Defer immediately with ephemeral=True
-        await interaction.response.defer(ephemeral=True)
+        except Exception as e:
+            print(f"Error deferring interaction: {e}")
+            return
         
-        # Validate URL format
+        # 2. Validate URL format
         if not STEAM_LINK_PATTERN.match(url.strip()):
+            # Use followup because we have already deferred
             await interaction.followup.send(
                 '❌ Invalid Steam share link. Please provide a valid link starting with `https://cdn.steamusercontent.com/ugc/`',
                 ephemeral=True
@@ -197,18 +197,21 @@ def run_bot():
         print(f"\n[{interaction.guild.name if interaction.guild else 'DM'}] Steam link received from {interaction.user}")
         print(f"  URL: {url}")
 
-        # Check queue status before adding
+        # 3. Add to Queue
+        # Even if the bot isn't "Ready" (processor not started), the queue is safe to use
         queue_size = bot.download_queue.qsize()
         is_processing = bot.processing_count
 
-        # Add to queue
         request = DownloadRequest(url=url.strip(), interaction=interaction)
         await bot.download_queue.put(request)
 
-        # Update status
-        await bot._update_status()
+        # Try to update status, but don't crash if bot isn't fully ready yet
+        try:
+            await bot._update_status()
+        except Exception:
+            pass
 
-        # Send initial acknowledgment via followup
+        # 4. User Feedback
         if is_processing and queue_size > 0:
             await interaction.followup.send(
                 f"You're in line! {queue_size + 1} clips ahead of you.",
