@@ -1,10 +1,10 @@
 # Steam Clip Discord Bot
 
-A Discord bot that automatically downloads Steam share videos and hosts them for easy access. When a user posts a Steam CDN link, the bot downloads the video using `yt-dlp`, hosts it on an integrated web server, and replies with a direct download link.
+A Discord bot that automatically downloads Steam share videos and hosts them for easy access. Users can use the `/share` slash command with a Steam CDN link, and the bot downloads the video using `yt-dlp`, hosts it on an integrated web server, and replies with a direct download link.
 
 ## Features
 
-- 🎮 Detects Steam share links (`https://cdn.steamusercontent.com/ugc/...`)
+- 🎮 Slash command interface (`/share`) for Steam share links (`https://cdn.steamusercontent.com/ugc/...`)
 - 📥 Downloads videos using `yt-dlp`
 - 🌐 Hosts downloaded videos via Flask web server
 - 📝 Queues multiple requests for sequential processing
@@ -31,11 +31,10 @@ Both services are managed by `supervisord` for reliability.
 2. Click "New Application" and give it a name
 3. Go to the "Bot" section
 4. Click "Reset Token" to get your bot token (save this securely)
-5. Enable "Message Content Intent" under "Privileged Gateway Intents"
-6. Go to "OAuth2" > "URL Generator"
-7. Select scopes: `bot`
-8. Select permissions: `Send Messages`, `Read Messages/View Channels`, `Add Reactions`, `Send Messages in Threads`
-9. Copy the generated URL and invite the bot to your server
+5. Go to "OAuth2" > "URL Generator"
+6. Select scopes: `bot` and `applications.commands`
+7. Select permissions: `Send Messages`, `Read Messages/View Channels`, `Send Messages in Threads`
+8. Copy the generated URL and invite the bot to your server
 
 ## Installation
 
@@ -131,14 +130,14 @@ clips.ablomer.io {
 
 Once the bot is running and invited to your Discord server:
 
-1. Post a Steam share link in any channel the bot can see
-2. The message must contain **only** the Steam link (nothing else)
-3. The bot will react with ⏳ and reply that it's downloading
-4. Once complete, the bot will react with ✅ and provide a direct download link
+1. Type `/share` in any channel
+2. Enter your Steam share link in the `url` parameter
+3. The bot will reply that it's downloading or queued
+4. Once complete, the bot will provide a direct download link
 
 Example:
 ```
-User: https://cdn.steamusercontent.com/ugc/123456789/video.mp4
+User: /share url:https://cdn.steamusercontent.com/ugc/123456789/video.mp4
 Bot: ⏳ Downloading your clip...
 Bot: ✅ Your clip is ready!
      https://clips.ablomer.io/a1b2c3d4-e5f6-7890-abcd-ef1234567890.mp4
@@ -189,11 +188,13 @@ docker exec -it steam-clip-bot bash
 
 ## Troubleshooting
 
-### Bot doesn't respond to links
+### Bot doesn't respond to slash command
 
-1. Check that Message Content Intent is enabled in Discord Developer Portal
-2. Ensure the message contains **only** the Steam link (no other text)
-3. Verify the link matches the pattern: `https://cdn.steamusercontent.com/ugc/...`
+1. Ensure the bot has the `applications.commands` scope when invited
+2. Wait a few minutes after inviting the bot for slash commands to sync
+3. Try typing `/share` - if it doesn't appear, the commands may not have synced yet
+4. Verify the link matches the pattern: `https://cdn.steamusercontent.com/ugc/...`
+5. Check bot logs for any sync errors
 
 ### Download fails
 
