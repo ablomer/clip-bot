@@ -27,9 +27,16 @@ class SteamClipBot(discord.Client):
     """Discord bot that processes Steam share links."""
 
     def __init__(self):
-        # Set up intents (no message_content needed for slash commands)
+        # Set up intents
         intents = discord.Intents.default()
-        super().__init__(intents=intents)
+        
+        # Start in "Do Not Disturb" mode with an "Initializing..." status
+        # This gives visual feedback that the bot isn't ready yet
+        super().__init__(
+            intents=intents, 
+            status=discord.Status.dnd, 
+            activity=discord.Game(name="Initializing...")
+        )
 
         # Tree for slash commands
         self.tree = app_commands.CommandTree(self)
@@ -38,6 +45,9 @@ class SteamClipBot(discord.Client):
         self.download_queue: asyncio.Queue[DownloadRequest] = asyncio.Queue()
         self.queue_processor_task: Optional[asyncio.Task] = None
         self.processing_count: bool = False  # Track if a video is currently being processed
+        
+        # Flag to prevent commands running before fully ready
+        self.is_ready_for_commands = False
 
     async def setup_hook(self):
         """Called when the bot is starting up, before on_ready."""
@@ -52,16 +62,23 @@ class SteamClipBot(discord.Client):
         print(f'✓ Bot logged in as {self.user}')
         print(f'  Connected to {len(self.guilds)} server(s)')
 
-        # Start the queue processor
+        # Start the queue processor if not running
         if self.queue_processor_task is None:
             self.queue_processor_task = asyncio.create_task(self._process_queue())
             print('✓ Download queue processor started')
 
-        # Update status to show processing count
+        # Mark bot as ready to accept commands
+        self.is_ready_for_commands = True
+        
+        # Update status (This will switch the icon from Red/DND to Green/Online)
         await self._update_status()
 
     async def _update_status(self):
         """Update the bot's Discord status to show processing count."""
+        # If the bot isn't fully ready, do not override the "Initializing" status
+        if not self.is_ready_for_commands:
+            return
+
         queue_size = self.download_queue.qsize()
         total = (1 if self.processing_count else 0) + queue_size
 
@@ -84,7 +101,8 @@ class SteamClipBot(discord.Client):
                 name=f"{queue_size} clip{'s' if queue_size != 1 else ''} in queue"
             )
 
-        await self.change_presence(activity=activity)
+        # Explicitly set status to Online here
+        await self.change_presence(status=discord.Status.online, activity=activity)
 
     async def _process_queue(self):
         """Process download requests from the queue sequentially."""
@@ -112,13 +130,13 @@ class SteamClipBot(discord.Client):
                     # Generate public URL
                     public_url = f"{config.base_url}/{filename}"
                     
-                    # 1. Send the public result to the channel (since the interaction is private)
+                    # 1. Send the public result to the channel
                     if request.interaction.channel:
                         await request.interaction.channel.send(
                             f'{request.interaction.user.mention} sent a [clip]({public_url})'
                         )
                     
-                    # 2. Send a private confirmation to the user to close out the interaction state
+                    # 2. Send a private confirmation to close out the interaction state
                     await request.interaction.followup.send(
                         f'✅ Clip successfully posted to channel!',
                         ephemeral=True
@@ -150,7 +168,7 @@ class SteamClipBot(discord.Client):
                 break
             except Exception as e:
                 print(f"Error in queue processor: {str(e)}")
-                await asyncio.sleep(1)  # Prevent rapid error loops
+                await asyncio.sleep(1)
 
 
 def run_bot():
@@ -163,8 +181,15 @@ def run_bot():
     async def share_command(interaction: discord.Interaction, url: str):
         """Slash command to download a Steam share video."""
         
-        # Defer immediately with ephemeral=True so the "Thinking..." 
-        # and "Working on your clip" messages are private
+        # Check if the bot is fully initialized
+        if not bot.is_ready_for_commands:
+            await interaction.response.send_message(
+                "❌ Hang tight, I'm not ready yet! Please try again in a few seconds.", 
+                ephemeral=True
+            )
+            return
+
+        # Defer immediately with ephemeral=True
         await interaction.response.defer(ephemeral=True)
         
         # Validate URL format
@@ -190,7 +215,6 @@ def run_bot():
         await bot._update_status()
 
         # Send initial acknowledgment via followup
-        # These will be private because the initial defer was ephemeral=True
         if is_processing and queue_size > 0:
             await interaction.followup.send(
                 f"✨ You're in line! {queue_size + 1} clips ahead of you.",
