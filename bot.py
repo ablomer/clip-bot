@@ -114,7 +114,7 @@ class SteamClipBot(discord.Client):
 
                     # Send success message via followup (initial response already sent)
                     await request.interaction.followup.send(
-                        f'✅ Your clip is ready!\n{public_url}',
+                        f'✅ Your [clip]({public_url}) is ready!',
                         ephemeral=False
                     )
 
@@ -185,17 +185,17 @@ def run_bot():
         if is_processing and queue_size > 0:
             await interaction.followup.send(
                 f"✨ You're in line! {queue_size + 1} clips ahead of you.",
-                ephemeral=False
+                ephemeral=True
             )
         elif is_processing:
             await interaction.followup.send(
                 "🎬 Working on your clip! Hang tight, it’ll be ready soon.",
-                ephemeral=False
+                ephemeral=True
             )
         else:
             await interaction.followup.send(
                 "🎬 Working on your clip! Hang tight, it'll be ready soon.",
-                ephemeral=False
+                ephemeral=True
             )
 
     bot.run(config.discord_bot_token)
