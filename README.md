@@ -78,17 +78,30 @@ docker-compose down
 
 ```bash
 # Build the image
-docker build -t steam-clip-bot .
+docker build -t clip-bot .
 
 # Run the container
 docker run -d \
-  --name steam-clip-bot \
+  --name clip-bot \
   -e DISCORD_BOT_TOKEN=your_token_here \
   -e BASE_URL=https://your-domain.com \
   -e WEB_SERVER_PORT=8080 \
   -p 8080:8080 \
   -v $(pwd)/downloads:/app/downloads \
-  steam-clip-bot
+  clip-bot
+```
+
+### Using Pre-built Image from Docker Hub
+
+Instead of building locally, you can use the pre-built image `ablomer/clip-bot:latest`. Simply replace `clip-bot` with `ablomer/clip-bot:latest` in the `docker` commands above.
+
+For Docker Compose, modify your `docker-compose.yml`:
+
+```yaml
+services:
+  clip-bot:
+    image: ablomer/clip-bot:latest
+    # ... rest of your configuration
 ```
 
 ## Reverse Proxy Configuration
@@ -185,13 +198,13 @@ Downloaded videos are stored in the `downloads/` directory. The bot does not aut
 
 ```bash
 # View storage usage
-docker exec steam-clip-bot du -sh /app/downloads
+docker exec clip-bot du -sh /app/downloads
 
 # Clean up old files (example: files older than 30 days)
 find ./downloads -type f -mtime +30 -delete
 
 # Or enter the container and manage manually
-docker exec -it steam-clip-bot bash
+docker exec -it clip-bot bash
 ```
 
 ## Troubleshooting
@@ -219,15 +232,11 @@ docker exec -it steam-clip-bot bash
 ### View logs
 
 ```bash
-# All logs
+# Follow all logs (bot + web server)
 docker-compose logs -f
 
-# Just the bot
-docker-compose logs -f clip-bot
-
-# Inside the container
-docker exec -it steam-clip-bot tail -f /var/log/supervisor/discord-bot-stdout*
-docker exec -it steam-clip-bot tail -f /var/log/supervisor/web-server-stdout*
+# Or use docker directly
+docker logs -f clip-bot
 ```
 
 ## Health Checks

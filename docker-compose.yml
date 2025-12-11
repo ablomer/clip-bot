@@ -3,7 +3,7 @@ version: '3.8'
 services:
   clip-bot:
     build: .
-    container_name: steam-clip-bot
+    container_name: clip-bot
     restart: unless-stopped
     
     environment:
