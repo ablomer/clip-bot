@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  clip-bot:
+    build: .
+    container_name: steam-clip-bot
+    restart: unless-stopped
+    
+    environment:
+      - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
+      - BASE_URL=${BASE_URL:-https://clips.ablomer.io}
+      - WEB_SERVER_PORT=${WEB_SERVER_PORT:-8080}
+      - DOWNLOADS_DIR=/app/downloads
+    
+    ports:
+      - "${HOST_PORT:-8080}:8080"
+    
+    volumes:
+      - ./downloads:/app/downloads
+    
+    # Optional: Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
