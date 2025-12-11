@@ -156,16 +156,16 @@ def run_bot():
     @app_commands.describe(url="The Steam CDN share link")
     async def share_command(interaction: discord.Interaction, url: str):
         """Slash command to download a Steam share video."""
+        # Defer immediately to prevent interaction timeout
+        await interaction.response.defer(ephemeral=False)
+        
         # Validate URL format
         if not STEAM_LINK_PATTERN.match(url.strip()):
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 '❌ Invalid Steam share link. Please provide a valid link starting with `https://cdn.steamusercontent.com/ugc/`',
                 ephemeral=True
             )
             return
-
-        # Defer immediately to prevent interaction timeout
-        await interaction.response.defer(ephemeral=False)
 
         print(f"\n[{interaction.guild.name if interaction.guild else 'DM'}] Steam link received from {interaction.user}")
         print(f"  URL: {url}")
