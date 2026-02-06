@@ -79,6 +79,10 @@ class SteamClipBot(discord.Client):
             self.queue_processor_task = asyncio.create_task(self._process_queue())
             print('✓ Download queue processor started')
 
+        # Start gateway health monitor
+        asyncio.create_task(self._monitor_gateway_health())
+        print('✓ Gateway health monitor started')
+
         # Mark bot as ready to accept commands
         self.is_ready_for_commands = True
         
@@ -131,6 +135,14 @@ class SteamClipBot(discord.Client):
 
         # Explicitly set status to Online here
         await self.change_presence(status=discord.Status.online, activity=activity)
+
+    async def _monitor_gateway_health(self):
+        """Monitor Discord gateway connection health."""
+        while True:
+            await asyncio.sleep(30)
+            latency_ms = self.latency * 1000
+            if latency_ms > 500:
+                print(f'⚠ High gateway latency: {latency_ms:.0f}ms')
 
     async def _process_queue(self):
         """Process download requests from the queue sequentially."""
