@@ -221,13 +221,19 @@ def run_bot():
     async def share_command(interaction: discord.Interaction, url: str):
         """Slash command to download a Steam share video."""
         
+        # Log interaction arrival with timestamp
+        import time
+        arrival_time = time.time()
+        interaction_age = arrival_time - interaction.created_at.timestamp()
+        print(f"\n/share interaction received (age: {interaction_age:.2f}s, latency: {bot.latency*1000:.0f}ms)")
+        
         # 1. Immediately defer to stop the 3-second timeout timer instantly
         # We wrap this in a try-block to gracefully catch 10062 if it occurs
         try:
             await interaction.response.defer(ephemeral=True)
         except discord.NotFound as e:
-            print(f"Interaction not found (timed out before reaching bot): {e}")
-            print("This usually indicates a gateway connection issue. Bot may need restart.")
+            print(f"✗ Interaction not found (timed out before reaching bot): {e}")
+            print(f"  Interaction was {interaction_age:.2f}s old when received (3s timeout)")
             return
         except discord.HTTPException as e:
             print(f"HTTP error deferring interaction: {e.status} - {e.text}")
