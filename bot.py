@@ -34,7 +34,11 @@ class SteamClipBot(discord.Client):
         super().__init__(
             intents=intents, 
             status=discord.Status.dnd, 
-            activity=discord.Game(name="Initializing...")
+            activity=discord.Game(name="Initializing..."),
+            # Add heartbeat timeout and max message size to handle long-running connections
+            heartbeat_timeout=60.0,
+            # Enable automatic reconnection with backoff
+            max_messages=1000  # Limit message cache to prevent memory issues
         )
 
         # Tree for slash commands
@@ -80,6 +84,22 @@ class SteamClipBot(discord.Client):
         
         # Update status
         await self._update_status()
+    
+    async def on_resumed(self):
+        """Called when the bot resumes a session after a disconnect."""
+        print('✓ Bot session resumed after disconnect')
+        # Re-sync status after reconnection
+        await self._update_status()
+    
+    async def on_disconnect(self):
+        """Called when the bot disconnects from Discord."""
+        print('⚠ Bot disconnected from Discord')
+    
+    async def on_error(self, event_method: str, *args, **kwargs):
+        """Called when an event handler raises an exception."""
+        print(f'✗ Error in {event_method}')
+        import traceback
+        traceback.print_exc()
 
     async def _update_status(self):
         """Update the bot's Discord status to show processing count."""
@@ -147,17 +167,23 @@ class SteamClipBot(discord.Client):
                     print(f"✓ Successfully processed: {filename}")
 
                 except DownloadError as e:
-                    await request.interaction.followup.send(
-                        f'❌ Failed to download clip: {str(e)}',
-                        ephemeral=True
-                    )
+                    try:
+                        await request.interaction.followup.send(
+                            f'❌ Failed to download clip: {str(e)}',
+                            ephemeral=True
+                        )
+                    except discord.HTTPException as http_err:
+                        print(f"✗ Failed to send error message (interaction expired): {http_err}")
                     print(f"✗ Download failed: {str(e)}")
 
                 except Exception as e:
-                    await request.interaction.followup.send(
-                        f'❌ An unexpected error occurred: {str(e)}',
-                        ephemeral=True
-                    )
+                    try:
+                        await request.interaction.followup.send(
+                            f'❌ An unexpected error occurred: {str(e)}',
+                            ephemeral=True
+                        )
+                    except discord.HTTPException as http_err:
+                        print(f"✗ Failed to send error message (interaction expired): {http_err}")
                     print(f"✗ Unexpected error: {str(e)}")
 
                 finally:
@@ -187,20 +213,27 @@ def run_bot():
         # We wrap this in a try-block to gracefully catch 10062 if it occurs
         try:
             await interaction.response.defer(ephemeral=True)
-        except discord.NotFound:
-            print("Interaction not found (timed out before reaching bot)")
+        except discord.NotFound as e:
+            print(f"Interaction not found (timed out before reaching bot): {e}")
+            print("This usually indicates a gateway connection issue. Bot may need restart.")
+            return
+        except discord.HTTPException as e:
+            print(f"HTTP error deferring interaction: {e.status} - {e.text}")
             return
         except Exception as e:
-            print(f"Error deferring interaction: {e}")
+            print(f"Error deferring interaction: {type(e).__name__}: {e}")
             return
         
         # 2. Validate URL format
         if not STEAM_LINK_PATTERN.match(url.strip()):
             # Use followup because we have already deferred
-            await interaction.followup.send(
-                '❌ Invalid Steam share link. Please provide a valid link starting with `https://cdn.steamusercontent.com/ugc/`',
-                ephemeral=True
-            )
+            try:
+                await interaction.followup.send(
+                    '❌ Invalid Steam share link. Please provide a valid link starting with `https://cdn.steamusercontent.com/ugc/`',
+                    ephemeral=True
+                )
+            except discord.HTTPException as e:
+                print(f"Failed to send validation error (interaction expired): {e}")
             return
 
         print(f"\n[{interaction.guild.name if interaction.guild else 'DM'}] Steam link received from {interaction.user}")
@@ -220,21 +253,24 @@ def run_bot():
             pass
 
         # 4. User Feedback
-        if is_processing and queue_size > 0:
-            await interaction.followup.send(
-                f"You're in line! {queue_size + 1} clips ahead of you.",
-                ephemeral=True
-            )
-        elif is_processing:
-            await interaction.followup.send(
-                "Working on your clip! Hang tight, it’ll be ready soon.",
-                ephemeral=True
-            )
-        else:
-            await interaction.followup.send(
-                "Working on your clip! Hang tight, it'll be ready soon.",
-                ephemeral=True
-            )
+        try:
+            if is_processing and queue_size > 0:
+                await interaction.followup.send(
+                    f"You're in line! {queue_size + 1} clips ahead of you.",
+                    ephemeral=True
+                )
+            elif is_processing:
+                await interaction.followup.send(
+                    "Working on your clip! Hang tight, it'll be ready soon.",
+                    ephemeral=True
+                )
+            else:
+                await interaction.followup.send(
+                    "Working on your clip! Hang tight, it'll be ready soon.",
+                    ephemeral=True
+                )
+        except discord.HTTPException as e:
+            print(f"Failed to send queue confirmation (interaction expired): {e}")
 
     bot.run(config.discord_bot_token)
 
