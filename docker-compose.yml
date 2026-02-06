@@ -8,7 +8,7 @@ services:
     
     environment:
       - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
-      - BASE_URL=${BASE_URL:-https://clips.ablomer.io}
+      - BASE_URL=${BASE_URL:-http://localhost:8080}
       - WEB_SERVER_PORT=${WEB_SERVER_PORT:-8080}
       - DOWNLOADS_DIR=/app/downloads
     
